@@ -2095,8 +2095,6 @@
 	"Voice": "",
 	"Voice Input": "",
 	"Voice mode": "",
-	"Voice transcription failed; message sent without text.": "Voice transcription failed; message sent without text.",
-	"No speech detected in the voice recording; message sent so you can continue.": "No speech detected in the voice recording; message sent so you can continue.",
 	"Voice Mode Custom Prompt": "",
 	"Voice Mode Prompt": "",
 	"Waiting for upload...": "",

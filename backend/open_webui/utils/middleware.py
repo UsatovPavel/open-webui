@@ -2083,150 +2083,6 @@ def load_messages_from_db(chat_id: str, message_id: str) -> Optional[list[dict]]
     return [{k: v for k, v in msg.items() if k in ('role', 'content', 'output', 'files')} for msg in db_messages]
 
 
-def _is_audio_attachment(f: dict) -> bool:
-    if not isinstance(f, dict):
-        return False
-    if f.get('type') == 'audio':
-        return True
-    ct = f.get('content_type') or ''
-    if isinstance(ct, str):
-        ctn = ct.strip().lower()
-        if ctn.startswith('audio/'):
-            return True
-        # Browser MediaRecorder often uses video/webm for voice clips.
-        if ctn in ('video/webm', 'audio/webm'):
-            return True
-    meta = f.get('meta')
-    if isinstance(meta, dict):
-        ct2 = meta.get('content_type') or ''
-        if isinstance(ct2, str):
-            c2 = ct2.strip().lower()
-            if c2.startswith('audio/'):
-                return True
-            if c2 in ('video/webm', 'audio/webm'):
-                return True
-    return False
-
-
-# Block chat completion until background STT / file pipeline finishes for attached audio,
-# so transcript backfill and downstream RAG/memory see file.data['content'].
-_AUDIO_PROCESSING_POLL_INTERVAL_S = 0.35
-try:
-    _AUDIO_PROCESSING_MAX_WAIT_S = max(
-        5.0, float(os.environ.get('OPEN_WEBUI_AUDIO_PROCESSING_MAX_WAIT', '180'))
-    )
-except (TypeError, ValueError):
-    _AUDIO_PROCESSING_MAX_WAIT_S = 180.0
-
-
-async def _await_pending_audio_files_if_any(user: UserModel, file_items: Optional[list]) -> None:
-    if not file_items or user is None:
-        return
-    uid = getattr(user, 'id', None)
-    if uid is None:
-        return
-
-    audio_ids: list[str] = []
-    for item in file_items:
-        if not _is_audio_attachment(item):
-            continue
-        fid = item.get('id')
-        if fid:
-            audio_ids.append(str(fid))
-    if not audio_ids:
-        return
-
-    deadline = time.monotonic() + _AUDIO_PROCESSING_MAX_WAIT_S
-    while time.monotonic() < deadline:
-        still_pending: list[str] = []
-        for fid in audio_ids:
-            try:
-                record = Files.get_file_by_id_and_user_id(fid, str(uid))
-            except Exception:
-                log.exception('await_audio_processing: lookup failed file_id=%s', fid)
-                still_pending.append(fid)
-                continue
-            if not record or not record.data:
-                still_pending.append(fid)
-                continue
-            st = record.data.get('status')
-            if st == 'pending':
-                still_pending.append(fid)
-            # completed / failed / no status (e.g. process=false upload): do not wait
-        if not still_pending:
-            return
-        await asyncio.sleep(_AUDIO_PROCESSING_POLL_INTERVAL_S)
-
-    log.warning(
-        'await_audio_processing: timeout after %.0fs; pending_audio_ids=%s',
-        _AUDIO_PROCESSING_MAX_WAIT_S,
-        audio_ids,
-    )
-
-
-def _collect_audio_transcripts_from_file_items(user: UserModel, file_items: Optional[list]) -> str:
-    """Load STT text from file records (audio uploads populate file.data['content'])."""
-    if not file_items or user is None:
-        return ''
-    uid = getattr(user, 'id', None)
-    if uid is None:
-        return ''
-    parts = []
-    for item in file_items:
-        if not _is_audio_attachment(item):
-            continue
-        fid = item.get('id')
-        if not fid:
-            continue
-        try:
-            record = Files.get_file_by_id_and_user_id(str(fid), str(uid))
-        except Exception:
-            log.exception('audio transcript lookup failed for file %s', fid)
-            continue
-        if not record or not record.data:
-            continue
-        text = (record.data.get('content') or '').strip()
-        if text:
-            parts.append(text)
-    return '\n\n'.join(parts)
-
-
-def _merge_audio_transcript_into_user_message(message: dict, transcript: str) -> None:
-    """Append or set user message text so upstream OpenAI-compatible APIs see the STT result."""
-    t = (transcript or '').strip()
-    if not t:
-        return
-    content = message.get('content')
-    if isinstance(content, list):
-        for item in content:
-            if isinstance(item, dict) and item.get('type') == 'text':
-                base = (item.get('text') or '').strip()
-                item['text'] = (base + '\n\n' if base else '') + t
-                return
-        message['content'] = [{'type': 'text', 'text': t}, *content]
-    else:
-        base = (content or '').strip() if isinstance(content, str) else ''
-        message['content'] = (base + '\n\n' if base else '') + t
-
-
-def _user_message_text_is_effectively_empty(message: Optional[dict]) -> bool:
-    if not message or message.get('role') != 'user':
-        return False
-    c = message.get('content')
-    if c is None:
-        return True
-    if isinstance(c, str):
-        return not c.strip()
-    if isinstance(c, list):
-        for item in c:
-            if not isinstance(item, dict):
-                continue
-            if item.get('type') == 'text' and (item.get('text') or '').strip():
-                return False
-        return True
-    return True
-
-
 def process_messages_with_output(messages: list[dict]) -> list[dict]:
     """
     Process messages with OR-aligned output items for LLM consumption.
@@ -2300,7 +2156,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             form_data['messages'] = [system_message, *db_messages] if system_message else db_messages
 
             # Inject image files into content as image_url parts (mirrors frontend logic).
-            # Inject audio transcripts into user text (file.data['content'] after STT pipeline).
+            # Non-image attachments (audio, pptx, …) stay on message.files for upstream (e.g. GPTHub ingest).
             for message in form_data['messages']:
                 msg_files = message.get('files', []) or []
                 image_files = [
@@ -2308,19 +2164,18 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     for f in msg_files
                     if f.get('type') == 'image' or (f.get('content_type') or '').startswith('image/')
                 ]
-                audio_text = _collect_audio_transcripts_from_file_items(
-                    user, [f for f in msg_files if _is_audio_attachment(f)]
-                )
+                non_images = [
+                    f
+                    for f in msg_files
+                    if not (
+                        f.get('type') == 'image' or (f.get('content_type') or '').startswith('image/')
+                    )
+                ]
                 if message.get('role') == 'user' and image_files:
                     text_content = message.get('content', '')
                     if isinstance(text_content, str):
-                        merged_text = text_content
-                        if audio_text:
-                            merged_text = (
-                                (merged_text.strip() + '\n\n' if merged_text.strip() else '') + audio_text
-                            )
                         message['content'] = [
-                            {'type': 'text', 'text': merged_text},
+                            {'type': 'text', 'text': text_content},
                             *[
                                 {
                                     'type': 'image_url',
@@ -2330,12 +2185,14 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                                 if f.get('url')
                             ],
                         ]
-                    elif audio_text:
-                        _merge_audio_transcript_into_user_message(message, audio_text)
-                elif message.get('role') == 'user' and audio_text:
-                    _merge_audio_transcript_into_user_message(message, audio_text)
-                # Strip files field — it's been incorporated into content
-                message.pop('files', None)
+                    if non_images:
+                        message['files'] = non_images
+                    else:
+                        message.pop('files', None)
+                elif non_images:
+                    message['files'] = non_images
+                elif 'files' in message:
+                    message.pop('files', None)
 
     # Process messages with OR-aligned output items for clean LLM messages
     form_data['messages'] = process_messages_with_output(form_data.get('messages', []))
@@ -2477,8 +2334,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     except Exception as e:
         raise Exception(f'{e}')
 
-    await _await_pending_audio_files_if_any(user, form_data.get('files'))
-
     features = form_data.pop('features', None) or {}
     extra_params['__features__'] = features
     if features:
@@ -2613,14 +2468,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         'files': files,
     }
     form_data['metadata'] = metadata
-
-    # Backfill STT text from attached audio files when the last user turn is empty
-    # (e.g. voice attachment in metadata.files without text in messages).
-    last_user_item = get_last_user_message_item(form_data['messages'])
-    if last_user_item and _user_message_text_is_effectively_empty(last_user_item):
-        audio_text = _collect_audio_transcripts_from_file_items(user, metadata.get('files'))
-        if audio_text:
-            _merge_audio_transcript_into_user_message(last_user_item, audio_text)
 
     # When the caller provides an explicit OpenAI-style `tools` array in the
     # request body, skip all server-side tool resolution and pass the caller's

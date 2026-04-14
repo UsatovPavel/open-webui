@@ -2099,8 +2099,6 @@
 	"Voice": "Голос",
 	"Voice Input": "Ввод голоса",
 	"Voice mode": "Режим голоса",
-	"Voice transcription failed; message sent without text.": "Не удалось распознать речь; сообщение отправлено без текста.",
-	"No speech detected in the voice recording; message sent so you can continue.": "В записи не обнаружена речь; сообщение отправлено, чтобы вы могли продолжить.",
 	"Voice Mode Custom Prompt": "",
 	"Voice Mode Prompt": "",
 	"Waiting for upload...": "",

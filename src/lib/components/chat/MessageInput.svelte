@@ -1204,23 +1204,15 @@
 								document.getElementById('chat-input')?.focus();
 
 								if (($settings?.speechAutoSend ?? false) && !data?.file) {
-									// Run only after VoiceRecording finished waiting on transcribeAudio (server STT).
 									const fromEditor = (inputContent?.md ?? prompt ?? '').trim();
 									const fromVoice =
 										data?.text !== undefined && data?.text !== null
 											? String(data.text).trim()
 											: '';
-									let toSend = fromEditor || fromVoice;
-									if (!toSend) {
-										toSend = data?.transcriptionFailed
-											? $i18n.t(
-													'Voice transcription failed; message sent without text.'
-												)
-											: $i18n.t(
-													'No speech detected in the voice recording; message sent so you can continue.'
-												);
+									const toSend = fromEditor || fromVoice;
+									if (toSend) {
+										dispatch('submit', toSend);
 									}
-									dispatch('submit', toSend);
 								}
 							}}
 						/>
