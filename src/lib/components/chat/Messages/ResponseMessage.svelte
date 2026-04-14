@@ -76,6 +76,11 @@
 			description: string;
 			urls?: string[];
 			query?: string;
+			phase?: string;
+			experts_ready?: number;
+			experts_total?: number;
+			slide_current?: number;
+			slide_total?: number;
 		}[];
 		status?: {
 			done: boolean;
@@ -83,6 +88,11 @@
 			description: string;
 			urls?: string[];
 			query?: string;
+			phase?: string;
+			experts_ready?: number;
+			experts_total?: number;
+			slide_current?: number;
+			slide_total?: number;
 		};
 		done: boolean;
 		error?: boolean | { content: string };

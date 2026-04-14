@@ -122,6 +122,44 @@
 					{/if}
 				</div>
 			</div>
+		{:else if status?.action === 'gpthub_council'}
+			<div class="flex flex-col justify-center gap-0.5">
+				{#if status?.phase === 'experts'}
+					<div
+						class="{(done || status?.done) === false
+							? 'shimmer'
+							: ''} text-gray-500 dark:text-gray-500 text-base text-wrap"
+					>
+						Эксперты ответили: {status.experts_ready ?? 0}/{status.experts_total ?? 0}
+					</div>
+				{:else if status?.phase === 'synthesis'}
+					<div
+						class="{(done || status?.done) === false
+							? 'shimmer'
+							: ''} text-gray-500 dark:text-gray-500 text-base text-wrap"
+					>
+						Суммаризатор объединяет ответы экспертов…
+					</div>
+				{:else if status?.phase === 'synthesis_fallback'}
+					<div
+						class="{(done || status?.done) === false
+							? 'shimmer'
+							: ''} text-gray-500 dark:text-gray-500 text-base text-wrap"
+					>
+						Fallback: готовлю ответ одной моделью…
+					</div>
+				{:else}
+					<div class="text-gray-500 dark:text-gray-500 text-base text-wrap">{status?.description}</div>
+				{/if}
+			</div>
+		{:else if status?.action === 'gpthub_pptx'}
+			<div
+				class="{(done || status?.done) === false
+					? 'shimmer'
+					: ''} text-gray-500 dark:text-gray-500 text-base text-wrap"
+			>
+				Слайдов готово: {status.slide_current ?? 0}/{status.slide_total ?? 0}
+			</div>
 		{:else}
 			<div class="flex flex-col justify-center -space-y-0.5">
 				<div
