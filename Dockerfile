@@ -3,7 +3,9 @@
 # use build args in the docker build command with --build-arg="BUILDARG=true"
 ARG USE_CUDA=false
 ARG USE_OLLAMA=false
-ARG USE_SLIM=false
+# GPTHub fork: slim by default (no embedding/whisper weight preload at build; use external APIs).
+# Full local RAG/STT offline image: docker build --build-arg USE_SLIM=false ...
+ARG USE_SLIM=true
 ARG USE_PERMISSION_HARDENING=false
 # Tested with cu117 for CUDA 11 and cu121 for CUDA 12 (default)
 ARG USE_CUDA_VER=cu128

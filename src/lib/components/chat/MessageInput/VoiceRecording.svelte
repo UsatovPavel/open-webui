@@ -155,6 +155,8 @@
 				return;
 			}
 
+			// Wait for server STT to finish, then always notify parent (success or failure)
+			// so autosend can run only after transcription attempt completes.
 			const res = await transcribeAudio(
 				localStorage.token,
 				file,
@@ -166,8 +168,15 @@
 
 			if (res) {
 				console.log(res);
-				onConfirm(res);
 			}
+
+			const text = typeof res?.text === 'string' ? res.text : '';
+			const transcriptionFailed = res == null || Boolean(res?.error);
+
+			onConfirm({
+				text,
+				transcriptionFailed
+			});
 		} else {
 			onConfirm({
 				file: file,

@@ -1,4 +1,6 @@
 .github
+.git
+cypress
 .DS_Store
 docs
 kubernetes

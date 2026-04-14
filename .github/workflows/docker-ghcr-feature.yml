@@ -56,5 +56,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             BUILD_HASH=${{ github.sha }}
+            USE_SLIM=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
