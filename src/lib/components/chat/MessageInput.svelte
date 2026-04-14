@@ -1203,7 +1203,7 @@
 								await tick();
 								document.getElementById('chat-input')?.focus();
 
-								if ($settings?.speechAutoSend ?? false && !data?.file) {
+								if (($settings?.speechAutoSend ?? false) && !data?.file) {
 									// Run only after VoiceRecording finished waiting on transcribeAudio (server STT).
 									const fromEditor = (inputContent?.md ?? prompt ?? '').trim();
 									const fromVoice =
