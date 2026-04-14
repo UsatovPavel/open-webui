@@ -80,6 +80,7 @@ from open_webui.routers import (
     auths,
     channels,
     chats,
+    gpthub_internal,
     notes,
     folders,
     configs,
@@ -1502,6 +1503,11 @@ app.include_router(users.router, prefix='/api/v1/users', tags=['users'])
 
 
 app.include_router(channels.router, prefix='/api/v1/channels', tags=['channels'])
+app.include_router(
+    gpthub_internal.router,
+    prefix='/api/v1/internal/gpthub',
+    tags=['gpthub-internal'],
+)
 app.include_router(chats.router, prefix='/api/v1/chats', tags=['chats'])
 app.include_router(notes.router, prefix='/api/v1/notes', tags=['notes'])
 

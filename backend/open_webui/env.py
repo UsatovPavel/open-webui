@@ -242,6 +242,13 @@ FORWARD_SESSION_INFO_HEADER_MESSAGE_ID = os.environ.get(
 )
 FORWARD_SESSION_INFO_HEADER_CHAT_ID = os.environ.get('FORWARD_SESSION_INFO_HEADER_CHAT_ID', 'X-OpenWebUI-Chat-Id')
 
+####################################
+# GPTHUB_INTERNAL_EVENT_SECRET
+# Shared with gpthub orchestrator for POST /api/v1/internal/gpthub/.../event (no sk- key).
+####################################
+
+GPTHUB_INTERNAL_EVENT_SECRET = os.environ.get('GPTHUB_INTERNAL_EVENT_SECRET', '')
+
 # Experimental feature, may be removed in future
 ENABLE_STAR_SESSIONS_MIDDLEWARE = os.environ.get('ENABLE_STAR_SESSIONS_MIDDLEWARE', 'False').lower() == 'true'
 
